@@ -1,25 +1,26 @@
 <!DOCTYPE html>
 
 <html lang="en-US">
-  <head>
-    <meta charset="UTF-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Youtube audio only</title>
-    <style>
-		.flex-container {
-			display: flex;
-			flex-flow: column wrap;
-			justify-content: center;
-			align-items: center;
-		}
-	</style>
-  </head>
-
-  <body>
-    <div class="flex-container">
-      <h2>Copy the URL of a YouTube video below</h2>
-      <input type="text" name="url"/>
-      <button type="button" onclick="">Submit</button>
-    </div>
-  </body>
+    <head>
+        <meta charset="UTF-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Youtube audio only</title>
+        <style>
+div, form {
+    display: flex;
+    flex-flow: column wrap;
+    justify-content: center;
+    align-items: center;
+}
+        </style>
+    </head>
+    <body>
+        <div class="flex-container">
+            <h2>Copy the URL of a YouTube video below</h2>
+            <form method="post">
+                <input type="text" value="URL"/><br/>
+                <input type="submit" value="Submit"/>
+            </form>
+        </div>
+    </body>
 </html>

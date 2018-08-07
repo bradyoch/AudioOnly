@@ -24,12 +24,18 @@ class Request():
         self.command = ""
         self.file = ""
         self.misc = []
+        self.args = ""
 
     def parse_request(self, data):
         data = data.decode().split("\r\n")
         self.command, self.file, _ = data[0].split()
-        
-        self.misc = data[1:]
+
+        if self.file == "/":
+            self.file = "/index.html"
+        self.file = SERVER_ROOT + self.file
+
+        self.misc = data[1:-1]
+        self.args = data[-1]
 
 def server_connect():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -37,25 +43,21 @@ def server_connect():
         server.listen(1)
 
         conn, addr = server.accept()
+        request = Request()
         with conn:
             print("Connection from: ", addr)
-            request = Request()
-            request.parse_request(conn.recv(1024))
-            
-            print(request.command, request.file)
-            if request.command != "GET":
-                conn.sendall(RESPONSE_400.encode())
-                return
 
-            if request.file == "/":
-                request.file == "/index.html"
-            print(request.file)
-            request.file = SERVER_ROOT + request.file
+            while True:
+                request.parse_request(conn.recv(1024))
 
-            with open(request.file, "rb") as f:
-                file_len = os.fstat(f.fileno()).st_size
-                conn.sendall(RESPONSE_200.format(file_len).encode())
-                conn.sendfile(f)
+                if request.command != "GET":
+                    conn.sendall(RESPONSE_400.encode())
+                    return
+
+                with open(request.file, "rb") as f:
+                    file_len = os.fstat(f.fileno()).st_size
+                    conn.sendall(RESPONSE_200.format(file_len).encode())
+                    conn.sendfile(f)
 
 def main():
     server_connect()
