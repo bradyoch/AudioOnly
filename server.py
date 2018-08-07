@@ -5,6 +5,7 @@ PORT = 9000
 
 SERVER_ROOT = "www/"
 
+# use conn.sendfile after sending this response
 RESPONSE_200 = ("HTTP/1.1 200 OK\r\n"
                 "Content-type: text/html\r\n"
                 "Content-length: {}\r\n\r\n")
@@ -30,12 +31,37 @@ class Request():
         data = data.decode().split("\r\n")
         self.command, self.file, _ = data[0].split()
 
-        if self.file == "/":
-            self.file = "/index.html"
-        self.file = SERVER_ROOT + self.file
-
         self.misc = data[1:-1]
         self.args = data[-1]
+        print("Command: {} Path: {}".format(self.command, self.file))
+
+        if self.file == "/":
+            self.file += "index.html"
+        self.file = SERVER_ROOT + self.file
+
+def handle_get(conn, file):
+    with open(file, "rb") as f:
+        file_len = os.fstat(f.fileno()).st_size
+        conn.sendall(RESPONSE_200.format(file_len).encode())
+        conn.sendfile(f)
+
+def handle_post(conn, args):
+    args = [tuple(x.split("=")) for x in args.split("&")]
+    handle_get(conn, SERVER_ROOT + "index.html")
+    return
+
+def handle_connection(conn):
+    request = Request()
+    while True:
+        request.parse_request(conn.recv(1024))
+
+        if request.command == "GET":
+            handle_get(conn, request.file)
+        elif request.command == "POST":
+            handle_post(conn, request.args)
+            return
+
+    conn.close()
 
 def server_connect():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
@@ -43,21 +69,8 @@ def server_connect():
         server.listen(1)
 
         conn, addr = server.accept()
-        request = Request()
-        with conn:
-            print("Connection from: ", addr)
-
-            while True:
-                request.parse_request(conn.recv(1024))
-
-                if request.command != "GET":
-                    conn.sendall(RESPONSE_400.encode())
-                    return
-
-                with open(request.file, "rb") as f:
-                    file_len = os.fstat(f.fileno()).st_size
-                    conn.sendall(RESPONSE_200.format(file_len).encode())
-                    conn.sendfile(f)
+        print("Connection from", addr)
+        handle_connection(conn)
 
 def main():
     server_connect()
