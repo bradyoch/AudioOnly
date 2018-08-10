@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 
-import socket, os, re
+import os, re, socket, subprocess
 
 HOST = "127.0.0.1"
 PORT = 9000
 
 SERVER_ROOT = "www/"
 URL_REGEX = ("^((https{0,1}://){0,1}(youtu.be/|www.youtube.com/watch\?v=)){0,1}"
-             "([a-zA-Z0-9_]{11})$")
+             "([a-zA-Z0-9_\-]{11})$")
 
 # use conn.sendfile after sending this response
 RESPONSE_200 = ("HTTP/1.1 200 OK\r\n"
-                "Content-type: text/html\r\n"
+                "Content-type: {}\r\n"
                 "Content-length: {}\r\n\r\n")
 
 RESPONSE_400 = ("HTTP/1.1 400 Bad Request\r\n"
@@ -23,6 +23,10 @@ RESPONSE_404 = ("HTTP/1.1 404 Not Found\r\n"
                 "Content-type: text/plain\r\n"
                 "Content-length: 9\r\n\r\n"
                 "Not Found")
+
+CONTENT_TYPE = {"html": "text/html",
+                "m4a" : "audio/m4a",
+                "mp3" : "audio/mp3"}
 
 class Request():
     def __init__(self):
@@ -41,19 +45,20 @@ class Request():
 
         if self.file == "/":
             self.file += "index.html"
-        self.file = SERVER_ROOT + self.file
+            self.file = SERVER_ROOT + self.file
 
         while "%" in self.args:
             i = self.args.index("%")
             self.args = self.args[:i] \
-                    + chr(int(self.args[i+1:i+3], 16)) \
-                    + self.args[i+3:]
+                + chr(int(self.args[i+1:i+3], 16)) \
+                + self.args[i+3:]
 
 def handle_get(conn, file):
     try:
         with open(file, "rb") as f:
             file_len = os.fstat(f.fileno()).st_size
-            conn.sendall(RESPONSE_200.format(file_len).encode())
+            conn.sendall(RESPONSE_200.format( \
+                CONTENT_TYPE["html"], file_len).encode())
             conn.sendfile(f)
     except FileNotFoundError as err:
         conn.sendall(RESPONSE_400.encode())
@@ -67,24 +72,42 @@ def handle_post(conn, args):
         if pair[0] == "url":
             match = re.fullmatch(URL_REGEX, pair[1])
             if not match:
-                break
+                return None
 
-    if match:
-        print("Request URL: ", match.groups())
-        handle_get(conn, SERVER_ROOT + "index.html")
-    else:
-        conn.sendall(RESPONSE_400.encode())
+    video_code = match.groups()[-1]
+
+    return video_code
+
+def fetch_video(conn, vid_code):
+    cache_dir = os.listdir("cache/")
+
+    if not (vid_code + ".mp3" in cache_dir):
+        subprocess.run(["./youtube-dl", "-x", \
+                        "--audio-format", "mp3", \
+                        "-o", "cache/%(id)s.%(ext)s", \
+                        vid_code])
+
+    with open("cache/{}.mp3".format(vid_code), "rb") as f:
+        file_len = os.fstat(f.fileno()).st_size
+        conn.sendall(RESPONSE_200.format(
+            CONTENT_TYPE["mp3"], file_len).encode())
+        conn.sendfile(f)
 
 def handle_connection(conn):
     request = Request()
+    vid_code = None
+
     while True:
         request.parse_request(conn.recv(1024))
 
         if request.command == "GET":
             handle_get(conn, request.file)
         elif request.command == "POST":
-            handle_post(conn, request.args)
-            return
+            vid_code = handle_post(conn, request.args)
+            break
+
+    if vid_code:
+        fetch_video(conn, vid_code)
 
     conn.close()
 
