@@ -1,2 +1,0 @@
-Youtube link regex:
-^(https{0,1}://){0,1}(youtu.be/|www.youtube.com/watch\?v=)[a-zA-z0-9]{11}$
